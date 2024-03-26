@@ -1,0 +1,191 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include "max6675.h"
+#define endereco  0x3F // Endereços comuns: 0x27, 0x3F
+#define colunas   16
+#define linhas    2
+#define motor 7
+#define ignicao 6
+#define tmp 3000
+const int ldr_pin = 5;
+#define solenoide 4
+#define solenoide2 3
+int thermoDO = 8;
+int thermoCS = 9;
+int thermoCLK = 10;
+float setPoint = 30;
+bool borboleta = false;
+bool carlivania = false;
+bool porcelana = false;
+bool barcelona = false;
+float tempC;
+int ldrValue;
+bool isFinish = false;
+bool isFinish2 = false;
+
+LiquidCrystal_I2C lcd(endereco, colunas, linhas);
+MAX6675 meuTermopar(thermoCLK, thermoCS, thermoDO);
+
+void setup() {
+  // put your setup code here, to run once:
+  pinMode (motor,OUTPUT);
+  pinMode (ignicao,OUTPUT);
+  pinMode (ldr_pin,INPUT);
+  pinMode (solenoide,OUTPUT);
+  pinMode (solenoide2,OUTPUT);
+  digitalWrite (ignicao,HIGH);
+  digitalWrite (solenoide,HIGH);
+  digitalWrite (solenoide2,HIGH);
+  digitalWrite (motor,HIGH);
+  pinMode(thermoCS, OUTPUT);
+  digitalWrite(thermoCS, HIGH);
+  lcd.init(); // INICIA A COMUNICAÇÃO COM O DISPLAY
+  lcd.backlight(); // LIGA A ILUMINAÇÃO DO DISPLAY
+  ligarEquipamento();
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+      tempC = mostrarTemp2();
+      leituraPino();
+
+      if(!isFinish){
+        if(tempC > 29){
+          digitalWrite(solenoide2, HIGH);
+        }else{
+          digitalWrite(solenoide2, LOW);  
+        }
+      }
+      
+        
+      
+
+
+      
+      
+}
+void mostrarTemp() {
+    lcd.init(); // INICIA A COMUNICAÇÃO COM O DISPLAY
+    lcd.backlight(); // LIGA A ILUMINAÇÃO DO DISPLAY
+    lcd.setCursor(9, 1);
+    lcd.print(meuTermopar.readCelsius());
+    lcd.println("C ");
+  }
+
+  float mostrarTemp2() {
+      float tempC = meuTermopar.readCelsius();
+      lcd.setCursor(5, 1);
+      lcd.print("Temp: ");
+      lcd.print(tempC);
+      lcd.print(" C");
+      delay(1000);
+      return tempC;
+    }
+
+void ligarEquipamento() {
+  if (!borboleta){
+      lcd.setCursor(0, 0); // LIMPA O DISPLAY
+      lcd.print("Projeto");
+      lcd.print("               ");
+      
+      delay(tmp);
+      lcd.setCursor(0, 0); // LIMPA O DISPLAY
+      lcd.print("Ligando Motor");
+      lcd.print("               ");
+      digitalWrite (motor,LOW);
+      delay (tmp);
+      lcd.setCursor(0, 0); // LIMPA O DISPLAY
+      lcd.print("Ignicao");
+      lcd.print("               "); // LIMPA O DISPLAY
+      digitalWrite (ignicao,LOW);
+      delay (1000);
+      lcd.setCursor(0, 0); // LIMPA O DISPLAY
+      lcd.print("Fogo baixo");
+      lcd.print("               "); // LIMPA O DISPLAY
+      digitalWrite (solenoide,LOW);
+      delay (tmp);
+      lcd.setCursor(0, 0); // LIMPA O DISPLAY
+      lcd.print("Fogo alto");
+      lcd.print("               ");
+      digitalWrite(solenoide2,LOW);
+      delay(tmp);
+      lcd.print("               "); 
+      borboleta = true;
+      
+    
+    }
+  }
+void falhaChama() {
+    digitalWrite (motor,HIGH);
+    digitalWrite (solenoide,HIGH);
+    digitalWrite (solenoide2,HIGH);
+    lcd.setCursor(0, 0); // LIMPA O DISPLAY
+    lcd.print("Falha de chama");
+    lcd.print("               ");
+}
+
+void chamaAcesa() {
+  if (!carlivania) {
+    digitalWrite (ignicao,HIGH);
+    digitalWrite (solenoide2,LOW); // LIMPA O DISPLAY
+    lcd.setCursor(0, 0); // LIMPA O DISPLAY
+    lcd.print("Chama acesa");
+    lcd.print("               ");
+
+    
+    
+    carlivania = true;
+  }
+}
+
+void leituraPino(){ 
+
+  int ldrValue;
+
+  unsigned long startMillis = millis();
+  while(millis() - startMillis < 2000) { // Fica em loop por 2 segundos
+
+    ldrValue = digitalRead(ldr_pin);
+
+    if(ldrValue == HIGH) { // Considera que a leitura HIGH indica escuridão
+      digitalWrite (motor,HIGH);
+      digitalWrite (solenoide,HIGH);
+      digitalWrite (solenoide2,HIGH);
+      lcd.setCursor(0, 0); // POSICIONA O CURSOR NA PRIMEIRA COLUNA DA LINHA 1
+      lcd.print("Falha de chama");
+      isFinish = true;
+      break;
+  // put your main code here, to run repeatedly:
+    }
+  }
+  
+  
+
+  chamaAcesa();
+  
+
+}
+
+
+void verificaChamaBaixa(){
+  unsigned long startMillis = millis();
+  while(millis() - startMillis < 2000) { // Fica em loop por 2 segundos
+
+    ldrValue = digitalRead(ldr_pin);
+
+    if(ldrValue == HIGH) { // Considera que a leitura HIGH indica escuridão
+      digitalWrite (motor,HIGH);
+      digitalWrite (solenoide,HIGH);
+      digitalWrite (solenoide2,HIGH);
+      lcd.setCursor(0, 0); // POSICIONA O CURSOR NA PRIMEIRA COLUNA DA LINHA 1
+      lcd.print("Falha de chama");
+      isFinish2 = true;
+      break;
+  // put your main code here, to run repeatedly:
+    }
+
+    
+
+  }
+}

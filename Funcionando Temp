@@ -1,0 +1,347 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include "max6675.h"
+
+#define endereco  0x3F // Endereços comuns: 0x27, 0x3F
+#define colunas   16
+#define linhas    2
+#define motor 7
+#define ignicao 6
+#define tmp 3000
+#define solenoide 4
+#define solenoide2 3
+#define botaoAjuste 11
+#define botaoSetaCima 12
+#define botaoSetaBaixo 13
+
+
+const int ldr_pin = 5;
+int thermoDO = 8;
+int thermoCS = 9;
+int thermoCLK = 10;
+bool borboleta = false;
+bool afterLoopSetupDone = false;
+bool porcelana = false;
+bool barcelona = false;
+float tempC;
+int ldrValue;
+bool isFinish = false;
+bool isFinish2 = false;
+
+int setPoint = 40; //setPoint é a temperatura que desejamos atingir com o nosso controlador
+int histerese = 10; //histerese é um atraso no acionamento da saída do controlador
+
+
+bool telaInit = false;
+bool ajustaSet = false;
+bool ajustaHisterese = false;
+bool controlando = false;
+
+int telas = 0; //telaInit = 0, telaControle = 1, telaAjustaSet = 2, telaAjustaHisterese = 4
+
+
+LiquidCrystal_I2C lcd(endereco, colunas, linhas);
+MAX6675 meuTermopar(thermoCLK, thermoCS, thermoDO);
+
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(botaoAjuste,INPUT);
+  pinMode(botaoSetaBaixo,INPUT);
+  pinMode(botaoSetaCima,INPUT);
+  pinMode (motor,OUTPUT);
+  pinMode (ignicao,OUTPUT);
+  pinMode (ldr_pin,INPUT);
+  pinMode (solenoide,OUTPUT);
+  pinMode (solenoide2,OUTPUT);
+  digitalWrite (ignicao,HIGH);
+  digitalWrite (solenoide,HIGH);
+  digitalWrite (solenoide2,HIGH);
+  digitalWrite (motor,HIGH);
+  pinMode(thermoCS, OUTPUT);
+  digitalWrite(thermoCS, HIGH);
+  lcd.init(); // INICIA A COMUNICAÇÃO COM O DISPLAY
+  lcd.backlight(); // LIGA A ILUMINAÇÃO DO DISPLAY
+  ligarEquipamento();
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  
+      tempC = mostrarTemp2();
+      leituraPino();
+      //alternanciaTemperatura();
+      verificaFogo();
+      alternanciaTemperatura();
+        
+      
+}
+
+void verificaFogo(){
+    if(isFinish){
+        lcd.setCursor(0, 0);
+        lcd.clear();
+        lcd.print("Sem fogo!");
+
+    }else{
+
+        funcBotao();
+        
+
+
+        
+    }
+}
+
+void alternanciaTemperatura(){
+
+      if(meuTermopar.readCelsius() <setPoint-histerese){
+          digitalWrite(solenoide2,LOW);
+      }else{
+          digitalWrite(solenoide2,HIGH);
+      }
+
+      if(isFinish){
+          digitalWrite(solenoide2,HIGH);
+      }
+
+
+
+    
+
+}
+
+void funcBotao(){
+
+    if(telas == 0){
+        lcd.setCursor(0,0);
+        lcd.print(String("M= SP:") + String(setPoint) + String(" HIS:" + String(histerese)));
+    }else if(telas == 1){
+        telaAjusteSet();
+    }
+
+    if(digitalRead(botaoAjuste)==HIGH) {
+
+      while(digitalRead(botaoAjuste)==HIGH) {
+      
+      }
+      
+      if(telas == 1) {
+        telas = 0;
+      }
+      else {
+        telas = telas + 1;
+      }
+
+      
+      
+    }
+
+    resetScreen();
+    delay(10);  
+}
+
+void telaAjusteSet(){
+
+  if(!ajustaSet) {
+    lcd.clear(); //Apaga todos os caracteres do Display
+    lcd.setCursor(0,0);//Marca o cursor na posição coluna 0, linha 0
+    lcd.print("Ajuste o SP");//Escreve a mensagem a partir da posição coluna 0, linha 0
+    lcd.setCursor(0,1);//Marca o cursor na posição coluna 0, linha 1
+    lcd.print("SP:");//Escreve a mensagem a partir da posição coluna 0, linha 1
+    lcd.print(setPoint);//Escreve o valor do set point
+    ajustaSet=true;
+  }
+  else {
+    lcd.setCursor(0,1);
+    lcd.print("SP:");
+    lcd.print(setPoint);
+    if(digitalRead(botaoSetaBaixo) == HIGH && digitalRead(botaoSetaCima) == LOW) {
+      setPoint = setPoint - 10;  
+    }
+    else if(digitalRead(botaoSetaBaixo) == LOW && digitalRead(botaoSetaCima) == HIGH) {
+      setPoint = setPoint + 10;
+    }
+      delay(100);
+    }
+
+}
+
+void telaAjusteHisterese() {
+
+    if(!ajustaHisterese){
+        lcd.clear(); //Apaga todos os caracteres do Display
+        lcd.setCursor(0,0);//Marca o cursor na posição coluna 0, linha 0
+        lcd.print("Ajuste a His");//Escreve a mensagem a partir da posição coluna 0, linha 0
+        lcd.setCursor(0,1);//Marca o cursor na posição coluna 0, linha 1
+        lcd.print("His: ");//Escreve a mensagem a partir da posição coluna 0, linha 1
+        lcd.print(histerese);//Escreve o valor do set point
+        ajustaHisterese=true;
+    }
+    else {
+        lcd.setCursor(0,1);
+        lcd.print("His:");
+        lcd.print(histerese);
+        if(digitalRead(botaoSetaBaixo) == HIGH && digitalRead(botaoSetaCima) == LOW) {
+            histerese = histerese - 1;  
+        }
+        else if(digitalRead(botaoSetaBaixo) == LOW && digitalRead(botaoSetaCima) == HIGH) {
+            histerese = histerese + 1;
+        }
+        delay(100);
+    }
+}
+
+
+
+void telaControlandoTemperatura(){
+
+    if(meuTermopar.readCelsius() <setPoint-histerese){
+        lcd.clear();
+        digitalWrite(solenoide2,LOW);
+        lcd.print(String("SP ") + String(setPoint) + String(" OUT ON"));
+    }else{
+        lcd.clear();
+        digitalWrite(solenoide2,HIGH);
+        lcd.print(String("SP ") + String(setPoint) + String(" OUT OFF"));
+    }
+
+    if(!controlando){
+        lcd.clear();
+        if(digitalRead(solenoide2) == LOW){
+            lcd.print(String("SP ") + String(setPoint) + String(" OUT ON"));
+        }else{
+            lcd.print(String("SP ") + String(setPoint) + String(" OUT OFF"));
+        }
+
+        controlando=true;
+    }
+
+}
+
+bool verificaTemp(){
+
+    float tempC = mostrarTemp2();
+
+    if(tempC > 29){
+        return false;
+    }else{
+        return true;
+    }
+}
+
+void mostrarTemp() {
+    lcd.init(); // INICIA A COMUNICAÇÃO COM O DISPLAY
+    lcd.backlight(); // LIGA A ILUMINAÇÃO DO DISPLAY
+    lcd.setCursor(9, 1);
+    lcd.print(meuTermopar.readCelsius());
+    lcd.println("C ");
+  }
+
+  float mostrarTemp2() {
+      float tempC = meuTermopar.readCelsius();
+      lcd.setCursor(5, 1);
+      lcd.print("Temp: ");
+      lcd.print(tempC);
+      lcd.print(" C");
+      delay(1000);
+      return tempC;
+    }
+
+void ligarEquipamento() {
+  if (!borboleta){
+      lcd.setCursor(0, 0); // LIMPA O DISPLAY
+      lcd.print("Asu Combustao");
+      lcd.print("               ");
+      mostrarTemp2();
+      delay(tmp);
+      lcd.setCursor(0, 0); // LIMPA O DISPLAY
+      lcd.print("Ligando Motor");
+      lcd.print("               "); 
+      mostrarTemp2();
+      digitalWrite (motor,LOW);
+      delay (tmp);
+      lcd.setCursor(0, 0); // LIMPA O DISPLAY
+      lcd.print("Ignicao");
+      lcd.print("               "); // LIMPA O DISPLAY
+      mostrarTemp2();
+      digitalWrite (ignicao,LOW);
+      delay (tmp);
+      lcd.setCursor (0, 0); // LIMPA O DISPLAY
+      
+      lcd.print("Fogo baixo");
+      lcd.print("               "); // LIMPA O DISPLAY
+      mostrarTemp2();
+      digitalWrite (solenoide,LOW);
+      delay(tmp);
+      borboleta = true;
+      
+    
+    }
+  }
+void falhaChama() {
+    digitalWrite (motor,HIGH);
+    digitalWrite (solenoide,HIGH);
+    digitalWrite (solenoide2,HIGH);
+    lcd.setCursor(0, 0); // LIMPA O DISPLAY
+    lcd.print("Falha de chama");
+    lcd.print("               ");
+}
+
+void chamaAcesa() {
+
+  
+  if (!afterLoopSetupDone) {
+    digitalWrite (ignicao,HIGH);
+
+    if (verificaTemp()){
+        digitalWrite (solenoide2,LOW); // LIMPA O DISPLAY
+        lcd.setCursor(0, 0);
+     // LIMPA O DISPLAY
+        lcd.print("Fogo alto");
+        lcd.print("               ");
+        delay(tmp);
+        lcd.setCursor(0, 0);
+        lcd.print("Chama acesa");
+        lcd.print("               ");
+        lcd.clear();
+        
+    }
+    afterLoopSetupDone = true;
+  }
+}
+
+void leituraPino(){ 
+
+  int ldrValue;
+
+  unsigned long startMillis = millis();
+  while(millis() - startMillis < 3000) { // Fica em loop por 2 segundos
+
+    ldrValue = digitalRead(ldr_pin);
+
+    if(ldrValue == HIGH) { // Considera que a leitura HIGH indica escuridão
+      digitalWrite (motor,HIGH);
+      digitalWrite (solenoide,HIGH);
+      digitalWrite (solenoide2,HIGH);
+      digitalWrite(ignicao, HIGH);
+      //lcd.setCursor(0, 0); // POSICIONA O CURSOR NA PRIMEIRA COLUNA DA LINHA 1
+      //lcd.print("Falha de chama");
+      isFinish = true;
+      break;
+  // put your main code here, to run repeatedly:
+    }else{
+      
+      if(!isFinish){
+        chamaAcesa();
+      }
+    }
+  }
+  
+}
+
+void resetScreen() {
+  
+  ajustaSet = false;
+  
+}

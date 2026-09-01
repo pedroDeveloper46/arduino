@@ -1,0 +1,54 @@
+#define releIgnicao 6
+#define releValvula 7
+#define sensorChama 5
+
+void setup() {
+  pinMode(releIgnicao, OUTPUT);
+  pinMode(releValvula, OUTPUT);
+  pinMode(sensorChama, INPUT);
+
+  digitalWrite(releIgnicao, HIGH);   
+  digitalWrite(releValvula, HIGH);
+
+  delay(5000); 
+
+  /*Aciona os 2 rele*/
+  digitalWrite(releIgnicao, LOW);
+  digitalWrite(releValvula, LOW);
+
+  delay(3000); 
+  /*Desliga IGNICAO*/
+  digitalWrite(releIgnicao, HIGH); 
+
+  /*Verifica se o sensor detecta chama*/
+  bool chamaDetectada = false;
+  unsigned long inicio = millis();
+  while (millis() - inicio < 3000) {
+    if (digitalRead(sensorChama) == LOW) {
+      chamaDetectada = true;
+      break;
+    }
+  }
+
+  if (!chamaDetectada) {
+    desligarSistema();
+  }
+}
+
+void loop() {
+  monitorarChama()
+}
+
+
+void monitorarChama(){
+  /*Se algum momento a chama não for detectada, sistema é desligado*/
+  if (digitalRead(sensorChama) == HIGH) {
+    desligarSistema();
+  }
+}
+
+void desligarSistema() {
+  /*desliga reles*/
+  digitalWrite(releIgnicao, HIGH);
+  digitalWrite(releValvula, HIGH);
+}
